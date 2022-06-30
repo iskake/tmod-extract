@@ -28,8 +28,8 @@ Manually extracting, decompressing files and converting images:
 # Extract the mod contents.
 # This will also write the file `entries.txt` to the extracted mod folder
 # which can be used to decompress the contents (`entries.txt` will _not_ be written if `-a` is used.)
-# (Contents will be written to `out/$MODNAME/`, in this case, `out/SomeMod/`)
 $ python tmod_extract.py SomeMod.tmod
+# Contents will be written to `out/$MODNAME/`, in this case, `out/SomeMod/`.
 
 # Decompress the resulting files (using the `entries.txt` file)
 # Use `-r` to replace the original uncompressed files, and `-e` to specify the `entries.txt` file.
@@ -42,4 +42,4 @@ $ python rawimg_to_png.py -r -e out/SomeMod/entries.txt
 
 ## Dependencies
 
-- Pillow (`for` image read/writing)
+- Pillow (for image read/writing)
