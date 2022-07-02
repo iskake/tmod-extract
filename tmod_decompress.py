@@ -5,18 +5,32 @@ import sys
 import argparse
 import zlib
 from pathlib import Path
-from path_helpers import path_append_extension
+from path_helpers import path_append_extension, dir_append_file
 
 
-def decompress(filename: str or Path, outname: str or Path = None, ignore_errors: bool = False) -> None:
+def _print_or_throw(message: str, e: Exception, ignore_errors: bool = False) -> None:
+    if ignore_errors:
+        print(message)
+        print("    Ignore flag is set! Continuing...")
+    else:
+        raise type(e)(message)
+
+
+def decompress(filename: str or Path, outname: str or Path = None, ignore_errors: bool = False) -> bool:
     """
     Function to decompress files using the DEFLATE algorithm.
     """
+    filename = Path(filename)
     if outname is None:
-        outname = filename + ".out" if type(outname) is str else path_append_extension(filename, ".out")
+        outname = path_append_extension(filename, ".out")
+    outname = Path(outname)
 
-    with open(filename, "rb") as comp_file:
-        file_data = comp_file.read()
+    try:
+        with open(filename, "rb") as comp_file:
+            file_data = comp_file.read()
+    except FileNotFoundError or PermissionError as e:
+        _print_or_throw(f"Could not decompress the file '{filename}': an exception occurred: {e}\nAre you sure this file is compressed?", e, ignore_errors)
+        return False
 
     # Compressed files use the DEFLATE format, so we have to set wbits like so.
     try:
@@ -24,15 +38,13 @@ def decompress(filename: str or Path, outname: str or Path = None, ignore_errors
 
         with open(outname, "wb") as decomp_file:
             decomp_file.write(file_data_decomp)
+            return True
     except Exception as e:
-        if ignore_errors:
-            print("An exception occurred: ", e)
-            print("Ignoring...")
-        else:
-            raise e
+        _print_or_throw(f"Could not decompress the file '{filename}': an exception occurred: {e}\nAre you sure this file is compressed?", e, ignore_errors)
+        return False
 
 
-def decomp_entries(file_dir: Path, file_entries: (str, int, int), ignore_errors: bool, replace_files: bool) -> None:
+def decomp_entries(file_dir: str | Path, file_entries: str | tuple[tuple[str, int, int]], ignore_errors: bool, replace_files: bool) -> None:
     for i, entry in enumerate(file_entries):
         print(f"Decompressing file {i+1} of {len(file_entries)}")
 
@@ -40,26 +52,30 @@ def decomp_entries(file_dir: Path, file_entries: (str, int, int), ignore_errors:
             entry = entry.strip().split(" ")
 
         filename, raw_size, compressed_size = entry
-        filename = file_dir + filename if type(file_dir) is str else file_dir / filename
+        filename = dir_append_file(file_dir, filename)
         raw_size, compressed_size = int(raw_size), int(compressed_size)
 
-        should_decompress = True if raw_size > compressed_size else False
+        should_decompress = raw_size > compressed_size
         if should_decompress:
             print(f"    Decompressing file: {filename}")
-            filename_tmp = filename + ".out" if type(filename) is str else path_append_extension(filename, ".out")
-            decompress(filename, filename_tmp, ignore_errors)
-            if replace_files:
-                os.replace(filename_tmp, filename)
-                print(f"    Saved file as {filename}")
+            filename_tmp = path_append_extension(filename, ".out")
+            success = decompress(filename, filename_tmp, ignore_errors)
+
+            if success:
+                if replace_files:
+                    os.replace(filename_tmp, filename)
+                    print(f"    Saved file as {filename}")
+                else:
+                    print(f"    Saved file as {filename_tmp}")
             else:
-                print(f"    Saved file as {filename}{ext}")
+                print("    An error occurred while decompressing the file.")
         else:
             print(f"    File should not be decompressed: {filename}")
 
 
 def _entryfile_handle(file: str) -> None:
     if not file.endswith("entries.txt"):
-        raise RuntimeError(f"File `{file}` is not `entries.txt`")
+        raise RuntimeError(f"Invalid filename: expected 'entries.txt', got '{file}'")
     else:
         file_dir = file.strip("entries.txt")
 
@@ -106,7 +122,9 @@ if __name__ == "__main__":
     files = args.file
 
     if (use_entryfile):
-        print("Using entries.txt file(s)...")
+        print("Using 'entries.txt' file(s)...")
+        if len(files) < 1:
+            raise RuntimeError("No 'entries.txt' file(s) specified.")
         for file in files:
             _entryfile_handle(file)
     else:
@@ -117,7 +135,15 @@ if __name__ == "__main__":
             ext = ".out"
             decompress(filename, filename + ext, ignore_errors)
             if replace_files:
-                os.replace(filename + ext, filename)
-                print(f"    Saved file as {filename}")
+                try:
+                    os.replace(filename + ext, filename)
+                    print(f"    Saved file as {filename}")
+                except FileNotFoundError as e:
+                    message = f"Could not replace the file '{filename}': {e}"
+                    if ignore_errors:
+                        print(message)
+                        print("    Ignore flag is set! Continuing...")
+                    else:
+                        raise type(e)(message)
             else:
                 print(f"    Saved file as {filename}{ext}")
