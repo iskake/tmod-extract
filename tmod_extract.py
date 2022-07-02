@@ -48,7 +48,7 @@ def _read_uint32(file: BufferedReader) -> int:
     return int.from_bytes(file.read(4), "little", signed=False)
 
 
-def extract(filename: str, write_entries: bool = True) -> (str, tuple):
+def extract(filename: str, write_entries: bool = True) -> namedtuple("entry", "filename raw_size comp_size"):
     with open(filename, "rb") as file:
         header = file.read(4)
         if header != b"TMOD":
@@ -100,11 +100,12 @@ def extract(filename: str, write_entries: bool = True) -> (str, tuple):
     return (mod_name, file_entries)
 
 
-def write_entryfile(mod_path: str, entries: tuple) -> None:
-    with open(mod_path, "w") as entry_file:
+def write_entryfile(mod_path: Path, entries: tuple) -> None:
+    mod_path = Path(mod_path)
+    with open(mod_path / "entries.txt", "w") as entry_file:
         for entry in entries:
             entry_file.write(f"{entry.filename} {entry.raw_size} {entry.comp_size}\n")
-    print(f"Wrote entries.txt to {str(mod_path)} (use with `tmod_decompress.py` and `rawimg_to_png.py`.)")
+    print(f"Wrote entries.txt to {str(mod_path)} (use with `tmod_decompress.py -e` and `rawimg_to_png.py -e`.)")
 
 
 if __name__ == "__main__":
@@ -130,7 +131,7 @@ if __name__ == "__main__":
         action=argparse.BooleanOptionalAction,
         default=False,
         dest="auto",
-        help="Automatically extract, decompress, and convert files, then remove the old files. Equivalent to as using `-d -i -r`")
+        help="Automatically extract, decompress, and convert files, then remove the old files. Equivalent to `-d -i`")
     parser.add_argument(
         "-r",
         "--replace",
@@ -144,7 +145,7 @@ if __name__ == "__main__":
 
     auto = args.auto
     decompress_files = args.decompress_files or auto
-    image_convert = args.image_convert or auto
+    convert_images = args.image_convert or auto
     replace = args.replace
     files = args.file
 
@@ -162,22 +163,22 @@ if __name__ == "__main__":
         mod_name, entries = extract(file)
         mod_path = Path(f"out/{mod_name}/")
         print(f"Finished extracting files from {file}.")
-        print(#"Note: auto flag (`-a`) not set!"
-              "Since most of the extracted files are probably compressed,"
-              "use `tmod_decompress.py` to decompress them.")
 
     if decompress_files:
         decomp_entries(mod_path, entries, False, True)
     else:
-        if not image_convert:
+        if not convert_images:
             write_entryfile(mod_path, entries)
-    if image_convert:
+            print("Note: decompress flag `-d` (or the auto flag `-a`) is not set!")
+            print("Since most of the extracted files are probably compressed, use `tmod_decompress.py -e` to decompress them.")
+
+    if convert_images:
         if not decompress_files:
             print("Images have not been decompressed, so they can not be converted.")
             print("Use `tmod_decompress.py` to decompress the files.")
             write_entryfile(mod_path, entries)
         else:
-            entries = [x[0] for x in entries if x[0].endswith(".rawimg")]
+            entries = [e.filename for e in entries if e.filename.endswith(".rawimg")]
             for i, filename in enumerate(entries):
                 print(f"Processing image {i+1} of {len(entries)}")
                 filename = mod_path / filename
