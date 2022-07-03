@@ -12,8 +12,8 @@ def path_append_extension(path: str | Path, extension: str) -> Path:
 
 def dir_append_file(directory: str | Path, file: str | Path) -> Path:
     """
-    Append an extension to the specified path.
+    Append a file to the specified directory.
     For example: 
-    ``Path("file.txt"), ".tmp"`` returns ``Path("file.txt.tmp")``
+    ``Path("/some/directory"), Path("file.txt")`` returns ``Path("/some/directory/file.txt")``
     """
     return Path(directory) / Path(file)
